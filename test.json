@@ -1,1 +1,12 @@
-[true, false, null, 123, "hi"]A
+{
+  "id": 101,
+  "name": "Alice Johnson",
+  "email": "alice@example.com",
+  "is_active": true,
+  "roles": ["admin", "editor"],
+  "address": {
+    "street": "123 Maple Street",
+    "city": "Pretendville",
+    "zip": "12345"
+  }
+}

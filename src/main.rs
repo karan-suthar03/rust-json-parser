@@ -192,6 +192,47 @@ enum JsonValue{
     Object(HashMap<String, JsonValue>)
 }
 
+impl Display for JsonValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        match self {
+            JsonValue::Null => {
+                print!("null")
+            }
+            JsonValue::Bool(val) => {
+                print!("{}", val)
+            }
+            JsonValue::Number(num) => {
+                print!("{}", num)
+            }
+            JsonValue::String(string) => {
+                print!("\"{}\"", string)
+            }
+            JsonValue::Array(arr) => {
+                print!("[");
+                for (i, value) in arr.iter().enumerate() {
+                    if i != 0 {
+                        print!(", ");
+                    }
+                    print!("{}", value);
+                }
+                print!("]");
+            }
+            JsonValue::Object(obj) => {
+                print!("{{");
+                for (i, (key, value)) in obj.iter().enumerate() {
+                    if i != 0 {
+                        print!(", ");
+                    }
+                    print!("\"{}\": {}", key, value);
+                }
+                print!("}}");
+            }
+        };
+        Ok(())
+    }
+}
+
+
 struct Parser{
     tokenizer:Tokenizer,
 }
@@ -215,27 +256,39 @@ impl Parser {
     }
 
     fn parse_value(&self, mut iter: &mut std::iter::Peekable<std::slice::Iter<Token>>) -> JsonValue{
-        match iter.peek().unwrap() {
-            Token::LeftCurlyBracket => {
-                self.parse_object(&mut iter)
-            }
-            Token::LeftSquareBracket => {
-                self.parse_array(&mut iter)
-            }
-            Token::String(string) => {
-                JsonValue::String(string.clone())
-            }
-            Token::Number(num) => {
-                JsonValue::Number(*num)
-            }
-            Token::True => {
-                JsonValue::Bool(true)
-            }
-            Token::False => {
-                JsonValue::Bool(false)
-            }
-            _ => {
+        match iter.peek() {
+            None => {
                 JsonValue::Null
+            }
+            Some(token) => {
+                match token {
+                    Token::LeftCurlyBracket => {
+                        self.parse_object(&mut iter)
+                    }
+                    Token::LeftSquareBracket => {
+                        self.parse_array(&mut iter)
+                    }
+                    Token::String(string) => {
+                        iter.next();
+                        JsonValue::String(string.clone())
+                    }
+                    Token::Number(num) => {
+                        iter.next();
+                        JsonValue::Number(*num)
+                    }
+                    Token::True => {
+                        iter.next();
+                        JsonValue::Bool(true)
+                    }
+                    Token::False => {
+                        iter.next();
+                        JsonValue::Bool(false)
+                    }
+                    _ => {
+                        iter.next();
+                        JsonValue::Null
+                    }
+                }
             }
         }
     }
@@ -246,24 +299,63 @@ impl Parser {
         iter.next(); // consume left square bracket
 
         loop {
-            match iter.peek().unwrap() {
-                Token::RightSquareBracket => {
-                    iter.next();
+            match iter.peek() {
+                None => {
                     break;
                 }
-                Token::Comma => {}
-                value => {
-                    array.push(self.parse_value(iter));
-                    iter.next();
+                Some(token) => {
+                    match token {
+                        Token::RightSquareBracket => {
+                            iter.next();
+                            break;
+                        }
+                        Token::Comma => {
+                            iter.next();
+                        }
+                        _ => {
+                            array.push(self.parse_value(iter));
+                        }
+                    };
                 }
-            };
+            }
         }
         
         JsonValue::Array(array)
     }
 
     fn parse_object(&self, iter: &mut std::iter::Peekable<std::slice::Iter<Token>>) -> JsonValue {
-        JsonValue::Null
+        let mut object = HashMap::new();
+        loop {
+            match iter.peek() {
+                None => {
+                    break;
+                }
+                Some(token) => {
+                    match token {
+                        Token::RightCurlyBracket => {
+                            iter.next();
+                            break;
+                        }
+                        Token::String(key) => {
+                            iter.next();
+                            match iter.peek() {
+                                Some(Token::Colon) => {
+                                    iter.next();
+                                    object.insert(key.clone(), self.parse_value(iter));
+                                }
+                                _ => {
+                                    iter.next();
+                                }
+                            }
+                        }
+                        _ => {
+                            iter.next();
+                        }
+                    }
+                }
+            }
+        }
+        JsonValue::Object(object)
     }
 
 }
@@ -273,9 +365,9 @@ fn main() {
     let json = fs::read_to_string("./test.json").unwrap();
 
     let parser = Parser::new(json);
-    parser.display_tokens();
+    // parser.display_tokens();
 
     let json_value:JsonValue = parser.parse();
 
-    print!("\n{:?}",json_value)
+    print!("\n{:}",json_value)
 }
